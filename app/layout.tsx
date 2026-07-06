@@ -16,6 +16,10 @@ export const metadata = {
   title: 'WMNDP SL | Sri Lankan Weather Monitoring | ICBT Networking Batch 50 Group Project',
   description: 'Sri Lankan Weather Monitoring and Disaster Prediction System (WMNDP). Live atmospheric data, machine learning forecasts, and disaster prediction.',
   keywords: ['WMNDP SL', 'Sri Lanka weather', 'disaster prediction Sri Lanka', 'weather monitoring', 'weather dashboard'],
+  // Fix applied here:
+  verification: {
+    google: 'a4fyUYwbkrExoSBZQHoB6whpOun3StplUBPpH67hiyA',
+  },
 }
 
 export default function RootLayout({
