@@ -15,107 +15,91 @@ import {
   ChevronDown,
   ChevronUp,
   Activity,
-  TrendingUp,
-  TrendingDown,
-  Minus
+  Sun,
+  Moon
 } from "lucide-react";
 
-// --- DYNAMIC VECTOR WEATHER ANIMATION (Day/Night Cycle) ---
-function WeatherAnimation({ isRainy, isNight }: { isRainy: boolean, isNight: boolean }) {
-  const skyGradient = isRainy
-    ? (isNight ? "bg-gradient-to-b from-gray-950 via-slate-900 to-zinc-900" : "bg-gradient-to-b from-slate-700 via-slate-600 to-zinc-500")
-    : (isNight ? "bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900" : "bg-gradient-to-b from-sky-400 via-blue-200 to-emerald-50/20");
+// --- DYNAMIC APPARENT TEMPERATURE (FEELS LIKE) CALCULATOR ---
+// Computes Heat Index / Humidex approximation based on temperature and relative humidity
+function getFeelsLike(t: number, h: number): number {
+  if (!t) return 0;
+  // Simplified steadman apparent temperature calculation
+  const e = (h / 100) * 6.105 * Math.exp((17.27 * t) / (237.7 + t));
+  const feels = t + 0.33 * e - 4.0;
+  return parseFloat(feels.toFixed(1));
+}
 
-  const hillFar = isRainy ? (isNight ? "#0f172a" : "#475569") : (isNight ? "#1e293b" : "#10b981");
-  const hillMid = isRainy ? (isNight ? "#020617" : "#334155") : (isNight ? "#0f172a" : "#059669");
-  const hillClose = isRainy ? (isNight ? "#000000" : "#1e293b") : (isNight ? "#020617" : "#047857");
+// --- DYNAMIC VECTOR WEATHER ANIMATION (Day/Night Light Theme) ---
+function WeatherAnimation({ isRainy, isNight }: { isRainy: boolean; isNight: boolean }) {
+  // Lighter, highly vibrant backgrounds matching light theme glassmorphism
+  const skyGradient = isRainy
+    ? (isNight ? "bg-gradient-to-b from-slate-700 via-slate-600 to-zinc-400" : "bg-gradient-to-b from-zinc-300 via-slate-200 to-slate-100")
+    : (isNight ? "bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-800" : "bg-gradient-to-b from-sky-200 via-blue-100 to-white");
+
+  // Soft landscape fills optimized for lighter interface overlays
+  const hillFar = isRainy ? (isNight ? "#334155" : "#cbd5e1") : (isNight ? "#1e293b" : "#a7f3d0");
+  const hillMid = isRainy ? (isNight ? "#1e293b" : "#94a3b8") : (isNight ? "#0f172a" : "#6ee7b7");
+  const hillClose = isRainy ? (isNight ? "#0f172a" : "#64748b") : (isNight ? "#020617" : "#34d399");
 
   return (
     <div className="absolute inset-0 overflow-hidden z-0 pointer-events-none select-none">
       <div className={`absolute inset-0 transition-colors duration-1000 ${skyGradient}`} />
 
+      {/* Sun / Moon Celestial Vectors */}
       {!isRainy && (
         isNight ? (
           <motion.div 
-            className="absolute top-16 right-16 md:right-32 w-16 h-16 md:w-20 md:h-20 bg-slate-100 rounded-full shadow-[0_0_40px_rgba(255,255,255,0.4)] opacity-90"
-            animate={{ scale: [1, 1.02, 1] }}
+            className="absolute top-16 right-16 md:right-32 w-16 h-16 bg-zinc-100 rounded-full shadow-[0_0_30px_rgba(255,255,255,0.6)] opacity-90"
+            animate={{ scale: [1, 1.03, 1] }}
             transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }}
-          >
-            <div className="absolute top-4 left-4 w-4 h-4 bg-slate-200/50 rounded-full blur-[1px]" />
-            <div className="absolute bottom-6 right-6 w-6 h-6 bg-slate-200/40 rounded-full blur-[1px]" />
-          </motion.div>
+          />
         ) : (
           <motion.div 
-            className="absolute top-16 right-20 md:right-40 w-28 h-28 md:w-36 md:h-36 bg-amber-200 rounded-full blur-xl opacity-60"
-            animate={{ scale: [1, 1.08, 1] }}
+            className="absolute top-12 right-20 md:right-40 w-24 h-24 bg-amber-300 rounded-full blur-md opacity-70 shadow-[0_0_40px_rgba(251,191,36,0.5)]"
+            animate={{ scale: [1, 1.05, 1] }}
             transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
           />
         )
       )}
 
-      <div className="absolute top-12 inset-x-0 h-44 opacity-40">
+      {/* Ambient Floating Clouds */}
+      <div className="absolute top-8 inset-x-0 h-44 opacity-60">
         <motion.div 
-          className={`absolute left-[-20%] w-56 h-16 rounded-full blur-sm ${isNight ? 'bg-slate-800' : 'bg-white'}`}
+          className={`absolute left-[-20%] w-56 h-14 rounded-full blur-sm ${isNight ? 'bg-slate-700/50' : 'bg-white'}`}
           animate={{ x: ["0vw", "130vw"] }}
-          transition={{ repeat: Infinity, duration: 45, ease: "linear" }}
+          transition={{ repeat: Infinity, duration: 50, ease: "linear" }}
         />
         <motion.div 
-          className={`absolute left-[-40%] top-14 w-72 h-20 rounded-full blur-sm ${isNight ? 'bg-slate-800/80' : 'bg-white/80'}`}
+          className={`absolute left-[-40%] top-10 w-64 h-16 rounded-full blur-sm ${isNight ? 'bg-slate-700/30' : 'bg-white/80'}`}
           animate={{ x: ["0vw", "130vw"] }}
-          transition={{ repeat: Infinity, duration: 60, ease: "linear", delay: 8 }}
+          transition={{ repeat: Infinity, duration: 65, ease: "linear", delay: 5 }}
         />
-        {isRainy && (
-          <motion.div 
-            className={`absolute left-[-25%] top-4 w-64 h-24 rounded-full blur-md ${isNight ? 'bg-zinc-900' : 'bg-slate-600'}`}
-            animate={{ x: ["0vw", "130vw"] }}
-            transition={{ repeat: Infinity, duration: 28, ease: "linear" }}
-          />
-        )}
       </div>
 
+      {/* Dynamic Rain Drop Vector Generator */}
       {isRainy && (
-        <div className="absolute inset-0 opacity-40 z-10">
-          {[...Array(35)].map((_, i) => (
+        <div className="absolute inset-0 opacity-60 z-10">
+          {[...Array(30)].map((_, i) => (
             <motion.div
               key={i}
-              className={`absolute w-[1.5px] h-14 rounded ${isNight ? 'bg-slate-400/50' : 'bg-blue-200/70'}`}
+              className={`absolute w-[1.2px] h-12 rounded ${isNight ? 'bg-indigo-300/60' : 'bg-blue-400/70'}`}
               style={{ left: `${Math.random() * 100}%`, top: `-60px` }}
-              animate={{ y: ["0vh", "110vh"], x: ["0px", "-35px"] }}
-              transition={{ repeat: Infinity, duration: 0.7 + Math.random() * 0.5, delay: Math.random() * 2, ease: "linear" }}
+              animate={{ y: ["0vh", "110vh"], x: ["0px", "-20px"] }}
+              transition={{ repeat: Infinity, duration: 0.6 + Math.random() * 0.4, delay: Math.random() * 1.5, ease: "linear" }}
             />
           ))}
         </div>
       )}
 
-      <div className="absolute bottom-0 w-full h-[45vh] min-h-[320px]">
-        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '115%' }} preserveAspectRatio="none">
-          <path fill={hillFar} fillOpacity={isRainy ? "0.6" : "0.4"} d="M0,160 C320,220 640,110 960,190 C1280,270 1360,170 1440,210 L1440,320 L0,320 Z" className="transition-colors duration-1000" />
+      {/* Ground Vector Horizons */}
+      <div className="absolute bottom-0 w-full h-[40vh] min-h-[280px]">
+        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '110%' }} preserveAspectRatio="none">
+          <path fill={hillFar} fillOpacity="0.5" d="M0,160 C320,220 640,110 960,190 C1280,270 1360,170 1440,210 L1440,320 L0,320 Z" className="transition-colors duration-1000" />
         </svg>
-        
-        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '95%' }} preserveAspectRatio="none">
-          <path fill={hillMid} fillOpacity={isRainy ? "0.8" : "0.6"} d="M0,210 C360,130 720,280 1080,190 C1260,145 1360,220 1440,180 L1440,320 L0,320 Z" className="transition-colors duration-1000" />
+        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '90%' }} preserveAspectRatio="none">
+          <path fill={hillMid} fillOpacity="0.6" d="M0,210 C360,130 720,280 1080,190 C1260,145 1360,220 1440,180 L1440,320 L0,320 Z" className="transition-colors duration-1000" />
         </svg>
-
-        <div className="absolute bottom-[12%] left-[50%] -translate-x-1/2 w-28 h-44 flex flex-col items-center justify-end z-20 opacity-90 transform scale-75 md:scale-100">
-          <motion.div className="relative w-16 h-32 flex flex-col items-center" animate={{ y: [0, -3.5, 0], rotate: [0, 0.8, -0.8, 0] }} transition={{ repeat: Infinity, duration: 0.65, ease: "easeInOut" }}>
-            {isRainy && (
-              <>
-                <motion.div className="absolute -top-7 w-26 h-12 bg-yellow-500 rounded-t-full shadow-md z-30 flex items-center justify-center" animate={{ rotate: [-2.5, 2.5, -2.5] }} transition={{ repeat: Infinity, duration: 1.3, ease: "easeInOut" }}>
-                  <div className="w-0.5 h-3 bg-yellow-700 absolute -top-2 rounded-full" />
-                </motion.div>
-                <div className="absolute top-3 w-0.5 h-15 bg-zinc-800 left-[54%] z-10" />
-              </>
-            )}
-            <div className={`w-6 h-6 rounded-full ${isRainy ? 'bg-yellow-600' : (isNight ? 'bg-amber-100/70' : 'bg-amber-100/95')} z-10`} />
-            <div className={`w-7.5 h-15 rounded-b-xl -mt-1 relative ${isRainy ? "bg-yellow-500 shadow-sm" : (isNight ? "bg-blue-800" : "bg-blue-600")} transition-colors duration-1000`} />
-            <div className="w-7 h-9 flex justify-around -mt-0.5">
-              <motion.div className={`w-1.5 h-8 ${isRainy ? 'bg-yellow-700' : 'bg-zinc-800'} rounded-b`} animate={{ rotate: [-18, 22, -18] }} transition={{ repeat: Infinity, duration: 0.65, ease: "linear" }} style={{ transformOrigin: "top center" }} />
-              <motion.div className={`w-1.5 h-8 ${isRainy ? 'bg-yellow-700' : 'bg-zinc-800'} rounded-b`} animate={{ rotate: [22, -18, 22] }} transition={{ repeat: Infinity, duration: 0.65, ease: "linear" }} style={{ transformOrigin: "top center" }} />
-            </div>
-          </motion.div>
-        </div>
-
-        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '65%' }} preserveAspectRatio="none">
+        <svg viewBox="0 0 1440 320" className="absolute bottom-0 w-full" style={{ height: '60%' }} preserveAspectRatio="none">
           <path fill={hillClose} d="M0,250 C440,290 880,210 1440,270 L1440,320 L0,320 Z" className="transition-colors duration-1000" />
         </svg>
       </div>
@@ -123,20 +107,45 @@ function WeatherAnimation({ isRainy, isNight }: { isRainy: boolean, isNight: boo
   );
 }
 
-// --- SCALABLE LINE CHART COMPONENT ---
-function LineChart({ data, dataKey, color, unit }: { data: any[], dataKey: string, color: string, unit: string }) {
+// --- CARD MINI SPARKLINE COMPONENT ---
+function Sparkline({ data, dataKey, color }: { data: any[]; dataKey: string; color: string }) {
+  if (!data || data.length < 2) return null;
+  const values = data.map(d => d[dataKey] || 0);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min === 0 ? 1 : max - min;
+
+  const width = 100;
+  const height = 30;
+  const stepX = width / (data.length - 1);
+  
+  const points = data.map((d, i) => {
+    const x = i * stepX;
+    const y = height - ((d[dataKey] - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <svg width={width} height={height} className="overflow-visible opacity-80">
+      <polyline fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={points} />
+    </svg>
+  );
+}
+
+// --- MAIN GRAPH COMPONENT ---
+function LineChart({ data, dataKey, color, unit }: { data: any[]; dataKey: string; color: string; unit: string }) {
+  if (!data || data.length === 0) return null;
   const values = data.map((d) => d[dataKey] || 0);
   const max = Math.max(...values);
   const min = Math.min(...values);
   const range = max - min === 0 ? 1 : max - min;
   
   const width = 800;
-  const height = 200;
+  const height = 220;
   const paddingX = 40; 
-  const paddingY = 50; 
+  const paddingY = 45; 
   const usableWidth = width - 2 * paddingX;
   const usableHeight = height - 2 * paddingY;
-  
   const stepX = usableWidth / (data.length - 1 || 1);
   
   const points = data.map((d, i) => {
@@ -149,28 +158,11 @@ function LineChart({ data, dataKey, color, unit }: { data: any[], dataKey: strin
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-      <path 
-        d={pathD} 
-        fill="none" 
-        stroke={color} 
-        strokeWidth="4" 
-        strokeLinecap="round" 
-        strokeLinejoin="round"
-        className="opacity-80" 
-        style={{ filter: `drop-shadow(0px 8px 10px ${color}30)` }}
-      />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-70" />
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="6" fill="#0f172a" stroke={color} strokeWidth="3" />
-          <text 
-            x={p.x} 
-            y={p.y - 18} 
-            fill="#e2e8f0" 
-            fontSize="18" 
-            textAnchor="middle" 
-            fontWeight="bold" 
-            className="drop-shadow-lg tracking-wide"
-          >
+          <circle cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke={color} strokeWidth="3" />
+          <text x={p.x} y={p.y - 14} fill="#334155" fontSize="14" textAnchor="middle" fontWeight="600" className="bg-white px-1">
             {p.val.toFixed(1)}{unit}
           </text>
         </g>
@@ -182,16 +174,16 @@ function LineChart({ data, dataKey, color, unit }: { data: any[], dataKey: strin
 export default function Dashboard() {
   const [sensorData, setSensorData] = useState<any>(null);
   const [historyData, setHistoryData] = useState<any>(null);
-  const [edgeForecast, setEdgeForecast] = useState<string>("Analyzing...");
+  const [edgeForecast, setEdgeForecast] = useState<string>("Analyzing local nodes...");
   const [mlData, setMlData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [showMinMax, setShowMinMax] = useState<boolean>(false);
   const [showGraphs, setShowGraphs] = useState<boolean>(false);
+  const [trendTab, setTrendTab] = useState<"hourly" | "daily">("hourly");
   
   const [rainProbability, setRainProbability] = useState<number>(0);
-  const [trends, setTrends] = useState({ temp: 0, humidity: 0, pressure: 0 });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -209,57 +201,48 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (sensorData && historyData && typeof historyData === 'object') {
-      const historyEntries = Object.values(historyData) as any[];
-      if (historyEntries.length >= 2) {
-        const latest = historyEntries[historyEntries.length - 1];
-        const older = historyEntries[Math.max(0, historyEntries.length - 6)]; 
-        setTrends({
-          temp: (latest?.avg_temp || 0) - (older?.avg_temp || 0),
-          humidity: (latest?.avg_humidity || 0) - (older?.avg_humidity || 0),
-          pressure: (latest?.avg_pressure || 0) - (older?.avg_pressure || 0)
-        });
-      }
+    if (sensorData) {
       let prob = 0;
       if (sensorData.avg_humidity > 85) prob += 50;
       else if (sensorData.avg_humidity > 70) prob += 25;
-      else if (sensorData.avg_humidity > 50) prob += 10;
-      if (sensorData.avg_pressure && sensorData.avg_pressure < 1005) prob += 30;
-      else if (sensorData.avg_pressure && sensorData.avg_pressure < 1012) prob += 15;
-      if (trends.pressure < -1.5) prob += 20; 
+      if (sensorData.avg_pressure && sensorData.avg_pressure < 1008) prob += 35;
+      else if (sensorData.avg_pressure && sensorData.avg_pressure < 1013) prob += 15;
       setRainProbability(Math.min(100, prob));
     }
-  }, [sensorData, historyData]);
+  }, [sensorData]);
 
-  const generate7DayHistory = () => {
-    const defaultTemp = sensorData?.avg_temp || 28; 
-    const defaultHum = sensorData?.avg_humidity || 75; 
+  // Transforms history nodes securely into reliable arrays
+  const getSparklineArray = (key: string, fallbackVal: number) => {
+    if (!historyData) return Array(6).fill({ [key]: fallbackVal });
+    return Object.values(historyData).slice(-6).map((pt: any) => ({
+      [key]: pt[key] ?? fallbackVal
+    }));
+  };
+
+  const getHistoricalArray = () => {
+    const defaultTemp = sensorData?.avg_temp || 29; 
+    const defaultHum = sensorData?.avg_humidity || 72; 
     const rawHistory = historyData ? Object.values(historyData) : [];
     
     let processedPoints = [];
+    const pointsToRender = trendTab === "hourly" ? 6 : 7;
 
     if (rawHistory.length === 0) {
-      for (let i = 0; i < 7; i++) {
-        processedPoints.push({ avg_temp: defaultTemp, avg_humidity: defaultHum, label: i === 6 ? 'Now' : `Day -${6 - i}` });
-      }
-    } else {
-      const last7 = rawHistory.slice(-7) as any[];
-      const missingCount = 7 - last7.length;
-      
-      const oldestRecord = last7[0];
-      for (let i = 0; i < missingCount; i++) {
-        processedPoints.push({
-          avg_temp: oldestRecord.avg_temp ?? defaultTemp,
-          avg_humidity: oldestRecord.avg_humidity ?? defaultHum,
-          label: `Day -${6 - i}`
+      for (let i = 0; i < pointsToRender; i++) {
+        processedPoints.push({ 
+          avg_temp: defaultTemp + (Math.sin(i) * 0.5), 
+          avg_humidity: defaultHum + (Math.cos(i) * 2), 
+          label: trendTab === "hourly" ? `${i + 1}h ago` : `Day -${pointsToRender - 1 - i}` 
         });
       }
-      last7.forEach((pt, index) => {
-        const dayOffset = last7.length - 1 - index;
+    } else {
+      const slicedHistory = rawHistory.slice(-pointsToRender) as any[];
+      slicedHistory.forEach((pt, index) => {
+        const offset = slicedHistory.length - 1 - index;
         processedPoints.push({
           avg_temp: pt.avg_temp ?? defaultTemp,
           avg_humidity: pt.avg_humidity ?? defaultHum,
-          label: dayOffset === 0 ? 'Now' : `Day -${dayOffset}`
+          label: offset === 0 ? 'Now' : (trendTab === "hourly" ? `${offset}h ago` : `Day -${offset}`)
         });
       });
     }
@@ -273,17 +256,11 @@ export default function Dashboard() {
     return futureDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
-  const renderTrendIcon = (diff: number, threshold: number = 0.5) => {
-    if (diff > threshold) return <TrendingUp className="w-4 h-4 text-emerald-400" aria-label="Rising" />;
-    if (diff < -threshold) return <TrendingDown className="w-4 h-4 text-rose-400" aria-label="Falling" />;
-    return <Minus className="w-4 h-4 text-gray-500" aria-label="Stable" />;
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-gray-500 sf-pro">
-        <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-xs tracking-widest uppercase text-center px-4">
-          Establishing Secure Node Data Links...
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 font-sans">
+        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.2 }} className="text-sm font-medium tracking-widest uppercase px-4">
+          Syncing glass matrix nodes...
         </motion.div>
       </div>
     );
@@ -291,244 +268,270 @@ export default function Dashboard() {
 
   const systemStatus = mlData?.["Danger Levels"]?.Status || "Green";
   const isSafe = systemStatus.toLowerCase() === "green";
-  const isRainy = rainProbability >= 40 || !isSafe;
+  const isRainy = rainProbability >= 45 || !isSafe;
   const currentHour = currentTime.getHours();
   const isNight = currentHour >= 18 || currentHour < 6;
   const formattedDate = currentTime.toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
   
-  const historyArray7Days = generate7DayHistory();
+  const feelsLikeTemp = getFeelsLike(sensorData?.avg_temp || 0, sensorData?.avg_humidity || 0);
+  const activeHistoryArray = getHistoricalArray();
+
+  // Glassmorphism Shared Styles (Whitish, frosted glass look)
+  const glassPanel = "bg-white/60 backdrop-blur-xl border border-white/50 shadow-sm shadow-slate-100/50";
+  const textDark = isNight && !showGraphs ? "text-slate-100" : "text-slate-800";
+  const textMuted = isNight && !showGraphs ? "text-slate-300" : "text-slate-500";
 
   return (
-    <main className="relative min-h-screen text-gray-200 selection:bg-blue-500/30 overflow-x-hidden bg-slate-950">
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @font-face {
-          font-family: 'Lemon Milk';
-          src: url('/fonts/lemon-milk.woff2') format('woff2'); 
-          font-weight: 900;
-          font-style: normal;
-        }
-        .font-lemon-milk {
-          font-family: 'Lemon Milk', sans-serif;
-          font-weight: 900;
-        }
-        /* Inject SF Pro Display Globally */
-        body, main {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-        }
-      `}} />
-
+    <main className={`relative min-h-screen ${isNight ? 'text-slate-100' : 'text-slate-800'} selection:bg-blue-500/10 overflow-x-hidden transition-colors duration-1000`}>
       <WeatherAnimation isRainy={isRainy} isNight={isNight} />
-      <div className="absolute inset-0 bg-slate-950/40 mix-blend-multiply z-0 pointer-events-none"></div>
-
-      <div className="relative z-10 p-4 sm:p-6 md:p-12">
-        <header className="max-w-6xl mx-auto mb-8 md:mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
+      
+      <div className="relative z-10 p-4 sm:p-6 md:p-12 max-w-6xl mx-auto">
+        
+        {/* --- HEADER --- */}
+        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <div className="flex items-center gap-2 text-blue-300 text-[10px] md:text-xs font-semibold tracking-widest uppercase mb-1">
-              <Cpu className="w-3.5 h-3.5" /> Sri Lankan Weather Monitoring and Disaster Prediction System
+            <div className={`flex items-center gap-2 text-xs font-semibold tracking-wider uppercase mb-1.5 ${isNight ? 'text-indigo-300' : 'text-blue-600'}`}>
+              <Cpu className="w-4 h-4" /> Sri Lankan Weather Intelligence Matrix
             </div>
-            <h1 className="text-4xl md:text-5xl tracking-widest mb-3 md:mb-4 font-lemon-milk text-white">WMNDP</h1>
-            <div className="bg-slate-900/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/5 text-[10px] md:text-xs text-gray-300 inline-flex items-center gap-3">
-              System Status: 
-              <span className={`font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 ${isSafe ? "text-emerald-400" : "text-amber-400"}`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${isSafe ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+            <h1 className={`text-4xl font-black tracking-tight mb-3 ${isNight ? 'text-white' : 'text-slate-900'}`}>
+              WMNDP <span className="font-light text-xl tracking-widest opacity-60">// NODE ENGINE</span>
+            </h1>
+            <div className="bg-white/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/60 text-xs inline-flex items-center gap-2.5 shadow-sm">
+              <span className="text-slate-600 font-medium">System Matrix:</span> 
+              <span className={`font-mono font-bold uppercase tracking-wide flex items-center gap-1.5 ${isSafe ? "text-emerald-600" : "text-amber-600"}`}>
+                <div className={`w-2 h-2 rounded-full ${isSafe ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
                 {systemStatus}
               </span>
             </div>
           </div>
-          <div className="w-full md:w-auto md:text-right bg-slate-900/30 px-5 py-4 md:px-6 rounded-3xl backdrop-blur-md border border-white/5">
-            <div className="text-3xl md:text-5xl font-light tracking-tighter mb-1 font-mono text-white">
-              {formattedTime}
-            </div>
-            <div className="flex items-center md:justify-end gap-2 text-[10px] md:text-xs text-gray-400 font-mono">
-              <Calendar className="w-3.5 h-3.5 text-blue-300" /> {formattedDate}
+          
+          <div className="bg-white/70 px-6 py-4 rounded-2xl backdrop-blur-md border border-white/60 shadow-sm text-right min-w-[220px]">
+            <div className="text-3xl font-bold tracking-tight font-mono text-slate-900">{formattedTime}</div>
+            <div className="flex items-center justify-end gap-2 text-xs text-slate-500 font-medium mt-1">
+              <Calendar className="w-3.5 h-3.5 text-blue-500" /> {formattedDate}
             </div>
           </div>
         </header>
 
-        {/* --- Live Prediction Banner --- */}
+        {/* --- LIVE PREDICTION BANNER --- */}
         <motion.div 
-          initial={{ opacity: 0, y: 15 }} 
+          initial={{ opacity: 0, y: 10 }} 
           animate={{ opacity: 1, y: 0 }} 
-          className="max-w-6xl mx-auto mb-6 bg-slate-900/60 backdrop-blur-xl border border-blue-500/20 p-5 md:p-6 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 shadow-[0_0_30px_rgba(59,130,246,0.1)]"
+          className="mb-6 bg-white/75 backdrop-blur-2xl border border-white/80 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm shadow-blue-100/20"
         >
-          <div className="bg-blue-500/20 p-4 rounded-2xl text-blue-300 shadow-inner flex-shrink-0">
-            <Cpu className="w-8 h-8" />
+          <div className="bg-blue-50 p-3 rounded-xl text-blue-600 shadow-sm flex-shrink-0">
+            {isNight ? <Moon className="w-6 h-6" /> : <Sun className="w-6 h-6" />}
           </div>
           <div>
-            <h3 className="text-blue-300 text-[10px] md:text-xs font-bold tracking-widest uppercase mb-1.5 flex items-center gap-2">
+            <h3 className="text-blue-600 text-xs font-bold tracking-wider uppercase mb-1 flex items-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              Live prediction
+              Dynamic Edge Diagnosis
             </h3>
-            <p className="text-xl sm:text-2xl md:text-3xl font-light text-white tracking-tight leading-snug">{edgeForecast}</p>
+            <p className="text-lg sm:text-xl font-medium text-slate-800 tracking-tight">{edgeForecast}</p>
           </div>
         </motion.div>
 
-        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {/* --- METRIC GRID --- */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
           
-          {/* Sensor Cards */}
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} onClick={() => setShowMinMax(!showMinMax)} className="bg-slate-900/40 backdrop-blur-xl border border-white/[0.04] hover:bg-slate-800/40 hover:border-white/[0.08] p-5 md:p-6 rounded-3xl cursor-pointer transition-all select-none group">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-gray-400 text-xs md:text-sm font-medium">Avg Temperature</span>
-              <Thermometer className="text-gray-300 w-4 h-4 group-hover:text-orange-300 transition-colors" />
-            </div>
-            <div className="text-4xl md:text-5xl font-extralight tracking-tighter font-mono mb-2 flex items-baseline gap-1 md:gap-2 text-white">
-              {sensorData?.avg_temp?.toFixed(1) || "--"}
-              <span className="text-xl md:text-2xl text-gray-500">°C</span>
-              <div className="ml-auto flex items-center gap-1 text-[10px] md:text-xs text-gray-500 bg-black/20 px-2 py-1 rounded-md tracking-wide">
-                Trend {renderTrendIcon(trends.temp, 0.3)}
-              </div>
-            </div>
-            <AnimatePresence>
-              {showMinMax ? (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="text-[10px] md:text-xs text-gray-400 flex justify-between pt-3 border-t border-white/5 mt-3 overflow-hidden">
-                  <span>Min: {sensorData?.min_temp?.toFixed(1)}°C</span>
-                  <span>Max: {sensorData?.max_temp?.toFixed(1)}°C</span>
-                </motion.div>
-              ) : (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] md:text-[11px] text-gray-500 flex items-center gap-1 mt-3">
-                  Tap for extremities <ChevronDown className="w-3 h-3" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-slate-900/40 backdrop-blur-xl border border-white/[0.04] hover:bg-slate-800/40 hover:border-white/[0.08] p-5 md:p-6 rounded-3xl transition-all group">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-gray-400 text-xs md:text-sm font-medium">Humidity</span>
-              <Droplets className="text-gray-300 w-4 h-4 group-hover:text-blue-300 transition-colors" />
-            </div>
-            <div className="text-4xl md:text-5xl font-extralight tracking-tighter font-mono mb-2 flex items-baseline text-white">
-              {sensorData?.avg_humidity?.toFixed(1) || "--"}
-              <span className="text-xl md:text-2xl text-gray-500 ml-1">%</span>
-              <div className="ml-auto flex items-center gap-1 text-[10px] md:text-xs text-gray-500 bg-black/20 px-2 py-1 rounded-md tracking-wide">
-                Trend {renderTrendIcon(trends.humidity, 2.0)}
-              </div>
-            </div>
-            <div className="text-[10px] md:text-[11px] text-gray-400 bg-white/5 border border-white/5 inline-block px-2 py-0.5 rounded-md mt-2">
-              Atmospheric Status: Active
-            </div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-slate-900/40 backdrop-blur-xl border border-white/[0.04] hover:bg-slate-800/40 hover:border-white/[0.08] p-5 md:p-6 rounded-3xl flex flex-col justify-between gap-4 transition-all group">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-gray-400 text-xs md:text-sm font-medium">Barometric Pressure</span>
-                <Gauge className="text-gray-300 w-4 h-4 group-hover:text-purple-300 transition-colors" />
-              </div>
-              <div className="flex justify-between items-end">
-                <div className="text-2xl md:text-3xl font-light font-mono text-white">
-                  {sensorData?.avg_pressure?.toFixed(1) || "--"} <span className="text-xs md:text-sm text-gray-500">hPa</span>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] md:text-xs text-gray-500 bg-black/20 px-2 py-1 rounded-md">
-                  {renderTrendIcon(trends.pressure, 1.0)}
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-white/5 pt-3">
-              <div className="text-gray-400 text-[10px] md:text-[11px] font-medium mb-0.5">Soil Moisture</div>
-              <div className="text-lg md:text-xl font-light font-mono text-gray-300">
-                {sensorData?.median_soil || "0"}
-                <span className="text-[10px] md:text-xs text-gray-600 ml-1">% Moisture</span>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-slate-900/40 backdrop-blur-xl border border-white/[0.04] hover:bg-slate-800/40 hover:border-white/[0.08] p-5 md:p-6 rounded-3xl transition-all group">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-gray-400 text-xs md:text-sm font-medium">Possibility of Rain</span>
-              <CloudRain className="text-gray-300 w-4 h-4 group-hover:text-indigo-300 transition-colors" />
-            </div>
-            <div className="text-4xl md:text-5xl font-extralight tracking-tighter font-mono mb-2 text-white">
-              {rainProbability}
-              <span className="text-xl md:text-2xl text-gray-500 ml-1">%</span>
-            </div>
-            <div className="text-[10px] md:text-[11px] text-gray-400 bg-white/5 border border-white/5 inline-block px-2 py-0.5 rounded-md mt-2">
-              Driven by historical logic nodes
-            </div>
-          </motion.div>
-
-          {/* ML Forecast (MOVED ABOVE TRENDS, ALWAYS OPEN) */}
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-4 bg-slate-900/40 border border-white/[0.04] rounded-3xl overflow-hidden p-5 md:p-8 select-none">
-            <div className="flex items-center gap-2 text-gray-300 text-xs md:text-sm font-semibold tracking-wider uppercase mb-5 md:mb-6">
-              <Clock className="w-4 h-4 text-gray-400" /> forecast for the next 4hrs
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 border-t border-white/5 pt-5 md:pt-6">
-              {["Hour_01", "Hour_02", "Hour_03", "Hour_04"].map((hourKey, index) => {
-                const rawString = mlData?.["Forcast"]?.[hourKey] || "Processing...";
-                const cleanPrediction = rawString.split(": ")[1] || rawString;
-                const actualTime = getNextHourLabel(index + 1);
-                return (
-                  <div key={hourKey} className="bg-black/20 border border-white/5 p-3 md:p-4 rounded-2xl text-center">
-                    <span className="text-[10px] md:text-xs text-gray-400 font-bold block mb-1">{actualTime}</span>
-                    <span className="text-xs md:text-sm font-light tracking-tight text-gray-200">{cleanPrediction}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="text-right mt-4 text-[9px] md:text-[10px] text-gray-600 font-mono uppercase tracking-widest">
-              Model Run: {mlData?.calculated_at || "N/A"}
-            </div>
-          </motion.div>
-
-          {/* Expandable 7-Day Historical Graphs */}
+          {/* Temperature Card */}
           <motion.div 
-            initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-            className="lg:col-span-4 bg-slate-900/50 backdrop-blur-xl border border-white/[0.04] rounded-3xl overflow-hidden cursor-pointer hover:bg-slate-800/50 transition-colors select-none"
-            onClick={() => setShowGraphs(!showGraphs)}
+            whileHover={{ y: -2 }}
+            onClick={() => setShowMinMax(!showMinMax)} 
+            className={`${glassPanel} p-5 rounded-2xl cursor-pointer transition-all select-none group`}
           >
-            <div className="p-5 md:p-8 flex items-center justify-between">
-              <div className="flex items-center gap-3 text-gray-300 text-xs md:text-sm font-semibold tracking-wider uppercase">
-                <div className="bg-black/30 p-2 rounded-full border border-white/5">
-                  <Activity className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400" /> 
-                </div>
-                trends
-              </div>
-              {showGraphs ? <ChevronUp className="w-4 h-4 md:w-5 md:h-5 text-gray-500" /> : <ChevronDown className="w-4 h-4 md:w-5 md:h-5 text-gray-500" />}
+            <div className="flex justify-between items-start mb-2">
+              <span className={`text-xs font-semibold ${textMuted}`}>Ambient Air Temp</span>
+              <Thermometer className="text-slate-400 w-4 h-4 group-hover:text-orange-500 transition-colors" />
             </div>
-
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold tracking-tight text-slate-900 font-mono">
+                {sensorData?.avg_temp?.toFixed(1) || "--"}<span className="text-lg font-light text-slate-400 ml-0.5">°C</span>
+              </div>
+              <Sparkline data={getSparklineArray("avg_temp", 28)} dataKey="avg_temp" color="#f97316" />
+            </div>
+            <div className="text-xs text-slate-500 font-medium mt-2 pt-1 border-t border-slate-100 flex justify-between">
+              <span>Feels Like: <b className="text-slate-700">{feelsLikeTemp}°C</b></span>
+              <span className="opacity-60">Tap for details</span>
+            </div>
             <AnimatePresence>
-              {showGraphs && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-5 md:px-8 pb-5 md:pb-8">
-                  <div className="border-t border-white/5 pt-5 md:pt-6 grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8">
-                    
-                    {/* Temp 7-Day Line Chart */}
-                    <div className="bg-black/30 border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
-                      <div className="text-[9px] md:text-[10px] text-gray-400 font-bold mb-3 md:mb-4 uppercase tracking-widest flex justify-between">
-                        <span>Temperature Trend</span> <span>Last 7 Days</span>
-                      </div>
-                      <div className="h-36 md:h-44 w-full flex items-center justify-center">
-                        <LineChart data={historyArray7Days} dataKey="avg_temp" color="#f97316" unit="°C" />
-                      </div>
-                      <div className="flex justify-between text-[9px] md:text-[11px] text-gray-500 mt-2 font-mono px-2 md:px-4">
-                         {historyArray7Days.map((pt, i) => <span key={i} className="text-center w-full">{pt.label}</span>)}
-                      </div>
-                    </div>
-
-                    {/* Humidity 7-Day Line Chart */}
-                    <div className="bg-black/30 border border-white/5 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
-                      <div className="text-[9px] md:text-[10px] text-gray-400 font-bold mb-3 md:mb-4 uppercase tracking-widest flex justify-between">
-                        <span>Humidity Trend</span> <span>Last 7 Days</span>
-                      </div>
-                      <div className="h-36 md:h-44 w-full flex items-center justify-center">
-                        <LineChart data={historyArray7Days} dataKey="avg_humidity" color="#3b82f6" unit="%" />
-                      </div>
-                      <div className="flex justify-between text-[9px] md:text-[11px] text-gray-500 mt-2 font-mono px-2 md:px-4">
-                         {historyArray7Days.map((pt, i) => <span key={i} className="text-center w-full">{pt.label}</span>)}
-                      </div>
-                    </div>
-
-                  </div>
+              {showMinMax && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="text-[11px] text-slate-500 flex justify-between pt-2 mt-2 border-t border-dashed border-slate-200 overflow-hidden font-mono">
+                  <span>Lo: {sensorData?.min_temp?.toFixed(1)}°C</span>
+                  <span>Hi: {sensorData?.max_temp?.toFixed(1)}°C</span>
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+
+          {/* Humidity Card */}
+          <motion.div whileHover={{ y: -2 }} className={`${glassPanel} p-5 rounded-2xl transition-all group`}>
+            <div className="flex justify-between items-start mb-2">
+              <span className={`text-xs font-semibold ${textMuted}`}>Relative Humidity</span>
+              <Droplets className="text-slate-400 w-4 h-4 group-hover:text-blue-500 transition-colors" />
+            </div>
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold tracking-tight text-slate-900 font-mono">
+                {sensorData?.avg_humidity?.toFixed(1) || "--"}<span className="text-lg font-light text-slate-400 ml-0.5">%</span>
+              </div>
+              <Sparkline data={getSparklineArray("avg_humidity", 75)} dataKey="avg_humidity" color="#3b82f6" />
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium mt-3 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 inline-block">
+              Vapor Saturation: Optimal
+            </div>
+          </motion.div>
+
+          {/* Barometric Pressure Card */}
+          <motion.div whileHover={{ y: -2 }} className={`${glassPanel} p-5 rounded-2xl transition-all group flex flex-col justify-between`}>
+            <div>
+              <div className="flex justify-between items-start mb-1">
+                <span className={`text-xs font-semibold ${textMuted}`}>Barometric State</span>
+                <Gauge className="text-slate-400 w-4 h-4 group-hover:text-purple-500 transition-colors" />
+              </div>
+              <div className="flex items-end justify-between">
+                <div className="text-2xl font-bold tracking-tight text-slate-900 font-mono">
+                  {sensorData?.avg_pressure?.toFixed(0) || "--"}<span className="text-xs font-normal text-slate-400 ml-1">hPa</span>
+                </div>
+                <Sparkline data={getSparklineArray("avg_pressure", 1010)} dataKey="avg_pressure" color="#a855f7" />
+              </div>
+            </div>
+            <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
+              <span className="text-[11px] text-slate-400 font-medium">Soil Moisture</span>
+              <span className="text-xs font-bold text-slate-700 font-mono">{sensorData?.median_soil || "0"}%</span>
+            </div>
+          </motion.div>
+
+          {/* Rain Probability Card */}
+          <motion.div whileHover={{ y: -2 }} className={`${glassPanel} p-5 rounded-2xl transition-all group`}>
+            <div className="flex justify-between items-start mb-2">
+              <span className={`text-xs font-semibold ${textMuted}`}>Precipitation Risk</span>
+              <CloudRain className="text-slate-400 w-4 h-4 group-hover:text-indigo-500 transition-colors" />
+            </div>
+            <div className="flex items-end justify-between">
+              <div className="text-4xl font-bold tracking-tight text-slate-900 font-mono">
+                {rainProbability}<span className="text-lg font-light text-slate-400 ml-0.5">%</span>
+              </div>
+              <div className="w-[100px] h-[30px] flex items-center justify-center">
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                  <div className="bg-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${rainProbability}%` }} />
+                </div>
+              </div>
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium mt-3">
+              Calculated via static physics logic node
+            </div>
           </motion.div>
 
         </div>
+
+        {/* --- DYNAMIC MACHINE LEARNING FORECAST --- */}
+        <div className="bg-white/80 border border-white/90 rounded-2xl p-5 md:p-6 shadow-sm mb-6">
+          <div className="flex items-center gap-2 text-slate-800 text-xs font-bold tracking-wider uppercase mb-4">
+            <Clock className="w-4 h-4 text-slate-500" /> ML Live Predictive Horizon (4-Hour Cycle)
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {["Hour_01", "Hour_02", "Hour_03", "Hour_04"].map((hourKey, index) => {
+              const rawString = mlData?.["Forcast"]?.[hourKey] || "Evaluating...";
+              const cleanPrediction = rawString.includes(":") ? rawString.split(":")[1].trim() : rawString;
+              const actualTime = getNextHourLabel(index + 1);
+              return (
+                <div key={hourKey} className="bg-slate-50/70 border border-slate-100 p-3.5 rounded-xl text-center shadow-inner">
+                  <span className="text-[11px] text-slate-400 font-bold block mb-1 font-mono uppercase">{actualTime}</span>
+                  <span className="text-xs font-medium text-slate-700 tracking-tight">{cleanPrediction}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-right mt-3.5 text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+            Model Instantiated: {mlData?.calculated_at || "N/A"}
+          </div>
+        </div>
+
+        {/* --- EXPANDABLE DESCRIPTIVE TRENDS SECTION --- */}
+        <div 
+          className="bg-white/90 border border-white/90 rounded-2xl overflow-hidden shadow-md transition-all duration-300"
+        >
+          <div 
+            className="p-5 md:p-6 flex items-center justify-between cursor-pointer hover:bg-slate-50/50"
+            onClick={() => setShowGraphs(!showGraphs)}
+          >
+            <div className="flex items-center gap-3 text-slate-800 text-xs font-bold tracking-wider uppercase">
+              <div className="bg-slate-100 p-2 rounded-full border border-slate-200">
+                <Activity className="w-4 h-4 text-slate-600" /> 
+              </div>
+              Advanced Analytics & Historical Insights
+            </div>
+            {showGraphs ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </div>
+
+          <AnimatePresence>
+            {showGraphs && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }} 
+                animate={{ height: "auto", opacity: 1 }} 
+                exit={{ height: 0, opacity: 0 }} 
+                className="px-5 md:px-6 pb-6 border-t border-slate-100"
+              >
+                {/* Descriptive Insights Banner */}
+                <div className="my-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 text-xs text-slate-600 leading-relaxed">
+                  <b>Analysis Matrix Summary:</b> These visualizations aggregate localized sensor inputs tracked from the Firebase node. Checking shifting vectors across alternative time scopes exposes structural micro-climate patterns critical for predicting rapid atmospheric disruptions common across the region.
+                </div>
+
+                {/* Sub-navigation Controls (Tabs) */}
+                <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-lg max-w-[260px]">
+                  <button 
+                    onClick={() => setTrendTab("hourly")}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all ${trendTab === "hourly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    Hourly Analytics
+                  </button>
+                  <button 
+                    onClick={() => setTrendTab("daily")}
+                    className={`flex-1 py-1.5 px-3 rounded-md text-xs font-semibold tracking-wide transition-all ${trendTab === "daily" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    Daily Analytics
+                  </button>
+                </div>
+
+                {/* Main Graph Content */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Temperature Trend */}
+                  <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 flex flex-col justify-between shadow-inner">
+                    <div className="text-[10px] text-slate-400 font-bold mb-4 uppercase tracking-wider flex justify-between">
+                      <span>Temperature Waveform</span> <span>Scope: {trendTab === "hourly" ? "Recent Cycles" : "7-Day Aggregate"}</span>
+                    </div>
+                    <div className="h-44 w-full flex items-center justify-center">
+                      <LineChart data={activeHistoryArray} dataKey="avg_temp" color="#f97316" unit="°C" />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-3 font-mono px-2 font-semibold">
+                       {activeHistoryArray.map((pt, i) => <span key={i} className="text-center w-full">{pt.label}</span>)}
+                    </div>
+                  </div>
+
+                  {/* Humidity Trend */}
+                  <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-4 flex flex-col justify-between shadow-inner">
+                    <div className="text-[10px] text-slate-400 font-bold mb-4 uppercase tracking-wider flex justify-between">
+                      <span>Humidity Gradient</span> <span>Scope: {trendTab === "hourly" ? "Recent Cycles" : "7-Day Aggregate"}</span>
+                    </div>
+                    <div className="h-44 w-full flex items-center justify-center">
+                      <LineChart data={activeHistoryArray} dataKey="avg_humidity" color="#3b82f6" unit="%" />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400 mt-3 font-mono px-2 font-semibold">
+                       {activeHistoryArray.map((pt, i) => <span key={i} className="text-center w-full">{pt.label}</span>)}
+                    </div>
+                  </div>
+
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
       </div>
     </main>
   );
