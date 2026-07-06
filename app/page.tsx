@@ -30,8 +30,8 @@ function WeatherAnimation({ isRainy, isNight }: { isRainy: boolean; isNight: boo
     ? (isNight ? "from-gray-950 via-slate-900 to-zinc-900" : "from-slate-600 via-slate-500 to-zinc-400")
     : (isNight ? "from-slate-950 via-indigo-950 to-slate-900" : "from-sky-500 via-blue-400 to-emerald-400/40");
 
-  // Bird flying variants
-  const birdVariants = {
+// Bird flying variants
+  const birdVariants: any = {
     animate: (startY: number) => ({
       x: ["-10vw", "110vw"],
       y: [startY, startY - 15, startY],
@@ -365,7 +365,7 @@ export default function Dashboard() {
   const feelsLikeVal = getFeelsLike(sensorData?.avg_temp || 0, sensorData?.avg_humidity || 0);
 
   // Liquid glass styling variation - Changed padding from edge-to-edge
-  const liquidGlassBox = "bg-white/10 backdrop-blur-2xl border border-white/30 shadow-[0_8px_32px_0_rgba(255,255,255,0.08)] shadow-slate-950/5 hover:bg-white/15 transition-all duration-300 flex flex-col justify-between min-h-[220px]";
+  const liquidGlassBox = "bg-white/25 backdrop-blur-2xl border border-white/30 shadow-[0_8px_32px_0_rgba(255,255,255,0.08)] shadow-slate-950/5 hover:bg-white/15 transition-all duration-300 flex flex-col justify-between min-h-[220px]";
 
   return (
     <main className="relative min-h-screen text-gray-200 selection:bg-blue-500/30 overflow-x-hidden bg-slate-950">
