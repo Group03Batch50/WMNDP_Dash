@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useLayoutEffect, useMemo } from "react";
+import { useEffect, useState, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ref, onValue } from "firebase/database";
 import { db } from "../firebaseconfig";
@@ -10,6 +10,7 @@ import {
   Gauge,
   Clock,
   ChevronDown,
+  ChevronUp,
   Activity,
   ShieldAlert,
   Radio
@@ -77,97 +78,187 @@ function getDangerLevelConfig(status?: string | null) {
   const s = (status || "").toLowerCase();
 
   if (s.includes("red") || s.includes("severe") || s.includes("emergency") || s.includes("critical")) {
-    return { key: "red", color: "#EF4444", soft: "rgba(239,68,68,0.18)", glow: "rgba(239,68,68,0.55)", label: status || "Red" };
+    return {
+      key: "red",
+      color: "#EF4444",
+      soft: "rgba(239,68,68,0.18)",
+      glow: "rgba(239,68,68,0.55)",
+      label: status || "Red",
+    };
   }
   if (s.includes("orange") || s.includes("warning")) {
-    return { key: "orange", color: "#F97316", soft: "rgba(249,115,22,0.18)", glow: "rgba(249,115,22,0.55)", label: status || "Orange" };
+    return {
+      key: "orange",
+      color: "#F97316",
+      soft: "rgba(249,115,22,0.18)",
+      glow: "rgba(249,115,22,0.55)",
+      label: status || "Orange",
+    };
   }
   if (s.includes("yellow") || s.includes("advisory") || s.includes("watch")) {
-    return { key: "yellow", color: "#EAB308", soft: "rgba(234,179,8,0.18)", glow: "rgba(234,179,8,0.55)", label: status || "Yellow" };
+    return {
+      key: "yellow",
+      color: "#EAB308",
+      soft: "rgba(234,179,8,0.18)",
+      glow: "rgba(234,179,8,0.55)",
+      label: status || "Yellow",
+    };
   }
   if (s.includes("green") || s.includes("safe") || s.includes("normal") || s.includes("clear")) {
-    return { key: "green", color: "#22C55E", soft: "rgba(34,197,94,0.18)", glow: "rgba(34,197,94,0.55)", label: status || "Safe" };
+    return {
+      key: "green",
+      color: "#22C55E",
+      soft: "rgba(34,197,94,0.18)",
+      glow: "rgba(34,197,94,0.55)",
+      label: status || "Safe",
+    };
   }
-  return { key: "unknown", color: "#94A3B8", soft: "rgba(148,163,184,0.18)", glow: "rgba(148,163,184,0.4)", label: status || "Awaiting Data" };
+  return {
+    key: "unknown",
+    color: "#94A3B8",
+    soft: "rgba(148,163,184,0.18)",
+    glow: "rgba(148,163,184,0.4)",
+    label: status || "Awaiting Data",
+  };
 }
 
-// --- CORE AGGREGATION ENGINE (30s intervals -> Hourly/Daily) ---
-function processSensorHistory(rawHistoryObj: Record<string, any>) {
-  if (!rawHistoryObj) return { hourly: [], daily: [] };
-
-  // Convert Firebase object map to array
-  const items = Object.values(rawHistoryObj);
-  
-  // Parse and filter valid dates
-  const validItems = items.map(item => {
-    // Check various common timestamp keys
-    const tsString = item.timestamp || item.time || item.createdAt; 
-    let dt = new Date(tsString);
+// --- TIMESTAMP PARSER & HISTORY AGGREGATOR ---
+function parseTimestamp(tsString: string): { date: Date; hour: string; day: string } | null {
+  try {
+    let parsed: Date;
     
-    if (isNaN(dt.getTime()) && typeof tsString === 'string') {
-      dt = new Date(tsString.replace(/['"]/g, '').trim());
+    if (!tsString) return null;
+    
+    parsed = new Date(tsString);
+    
+    if (isNaN(parsed.getTime())) {
+      const cleaned = tsString.replace(/['"]/g, '').trim();
+      parsed = new Date(cleaned);
     }
-
-    return { ...item, date: dt, isValid: !isNaN(dt.getTime()) };
-  }).filter(item => item.isValid).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  if (validItems.length === 0) return { hourly: [], daily: [] };
-
-  const hourlyGroups: Record<string, any> = {};
-  const dailyGroups: Record<string, any> = {};
-
-  validItems.forEach(item => {
-    const d = item.date;
-    // Grouping keys using local time
-    const hourKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
-    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-
-    // Extract values with fallbacks in case DB keys vary slightly
-    const temp = item.avg_temp ?? item.temperature ?? item.temp ?? 0;
-    const hum = item.avg_humidity ?? item.humidity ?? item.hum ?? 0;
-    const press = item.avg_pressure ?? item.pressure ?? item.press ?? 0;
-    const soil = item.median_soil ?? item.soil_moisture ?? item.soil ?? 0;
-
-    // Aggregate Hourly
-    if (!hourlyGroups[hourKey]) hourlyGroups[hourKey] = { count: 0, temp: 0, hum: 0, press: 0, soil: 0, date: d };
-    hourlyGroups[hourKey].count++;
-    hourlyGroups[hourKey].temp += temp;
-    hourlyGroups[hourKey].hum += hum;
-    hourlyGroups[hourKey].press += press;
-    hourlyGroups[hourKey].soil += soil;
-
-    // Aggregate Daily
-    if (!dailyGroups[dayKey]) dailyGroups[dayKey] = { count: 0, temp: 0, hum: 0, press: 0, soil: 0, date: d };
-    dailyGroups[dayKey].count++;
-    dailyGroups[dayKey].temp += temp;
-    dailyGroups[dayKey].hum += hum;
-    dailyGroups[dayKey].press += press;
-    dailyGroups[dayKey].soil += soil;
-  });
-
-  // Calculate Averages and format labels
-  const hourly = Object.values(hourlyGroups).map(g => ({
-    avg_temp: g.temp / g.count,
-    avg_humidity: g.hum / g.count,
-    avg_pressure: g.press / g.count,
-    median_soil: g.soil / g.count,
-    date: g.date,
-    label: g.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  })).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const daily = Object.values(dailyGroups).map(g => ({
-    avg_temp: g.temp / g.count,
-    avg_humidity: g.hum / g.count,
-    avg_pressure: g.press / g.count,
-    median_soil: g.soil / g.count,
-    date: g.date,
-    label: g.date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-  })).sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  return { hourly, daily };
+    
+    if (isNaN(parsed.getTime())) return null;
+    
+    return {
+      date: parsed,
+      hour: parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      day: parsed.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+    };
+  } catch {
+    return null;
+  }
 }
 
-// --- SEEDED PSEUDO-RANDOM GENERATOR (Deterministic, Hydration-Safe) ---
+function aggregateHistoryByHour(
+  rawHistory: any[],
+  rawHistoryObj: Record<string, any>
+): Array<{ timestamp: string; hour: string; data: any; index: number }> {
+  try {
+    const items = Array.isArray(rawHistory) ? rawHistory : Object.values(rawHistoryObj || {});
+    
+    if (!items || items.length === 0) return [];
+    
+    const parsed = items
+      .map((item: any) => ({
+        ...item,
+        ts: parseTimestamp(item.timestamp),
+      }))
+      .filter((item: any) => item.ts !== null)
+      .sort((a: any, b: any) => a.ts.date.getTime() - b.ts.date.getTime());
+
+    if (parsed.length === 0) return [];
+
+    const hourlyMap: Record<string, any> = {};
+    const hourlyIndices: Record<string, number[]> = {};
+
+    parsed.forEach((item: any, idx: number) => {
+      const hourKey = item.ts.date.toISOString().substring(0, 13);
+      if (!hourlyMap[hourKey]) {
+        hourlyMap[hourKey] = { count: 0, avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0 };
+        hourlyIndices[hourKey] = [];
+      }
+      hourlyMap[hourKey].count += 1;
+      hourlyMap[hourKey].avg_temp += item.avg_temp || 0;
+      hourlyMap[hourKey].avg_humidity += item.avg_humidity || 0;
+      hourlyMap[hourKey].avg_pressure += item.avg_pressure || 0;
+      hourlyMap[hourKey].median_soil = item.median_soil || 0;
+      hourlyIndices[hourKey].push(idx);
+    });
+
+    return Object.entries(hourlyMap).map(([hourKey, data], index) => {
+      data.avg_temp /= data.count;
+      data.avg_humidity /= data.count;
+      data.avg_pressure /= data.count;
+      
+      const sampleTs = parsed[hourlyIndices[hourKey][0]].ts;
+      return {
+        timestamp: hourKey,
+        hour: sampleTs.hour,
+        data,
+        index,
+      };
+    });
+  } catch (error) {
+    console.warn("Error aggregating hourly history:", error);
+    return [];
+  }
+}
+
+function aggregateHistoryByDay(
+  rawHistory: any[],
+  rawHistoryObj: Record<string, any>
+): Array<{ timestamp: string; day: string; data: any; index: number }> {
+  try {
+    const items = Array.isArray(rawHistory) ? rawHistory : Object.values(rawHistoryObj || {});
+    
+    if (!items || items.length === 0) return [];
+    
+    const parsed = items
+      .map((item: any) => ({
+        ...item,
+        ts: parseTimestamp(item.timestamp),
+      }))
+      .filter((item: any) => item.ts !== null)
+      .sort((a: any, b: any) => a.ts.date.getTime() - b.ts.date.getTime());
+
+    if (parsed.length === 0) return [];
+
+    const dailyMap: Record<string, any> = {};
+    const dailyIndices: Record<string, number[]> = {};
+
+    parsed.forEach((item: any, idx: number) => {
+      const dayKey = item.ts.date.toISOString().substring(0, 10);
+      if (!dailyMap[dayKey]) {
+        dailyMap[dayKey] = { count: 0, avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0 };
+        dailyIndices[dayKey] = [];
+      }
+      dailyMap[dayKey].count += 1;
+      dailyMap[dayKey].avg_temp += item.avg_temp || 0;
+      dailyMap[dayKey].avg_humidity += item.avg_humidity || 0;
+      dailyMap[dayKey].avg_pressure += item.avg_pressure || 0;
+      dailyMap[dayKey].median_soil = item.median_soil || 0;
+      dailyIndices[dayKey].push(idx);
+    });
+
+    return Object.entries(dailyMap).map(([dayKey, data], index) => {
+      data.avg_temp /= data.count;
+      data.avg_humidity /= data.count;
+      data.avg_pressure /= data.count;
+      
+      const sampleTs = parsed[dailyIndices[dayKey][0]].ts;
+      return {
+        timestamp: dayKey,
+        day: sampleTs.day,
+        data,
+        index,
+      };
+    });
+  } catch (error) {
+    console.warn("Error aggregating daily history:", error);
+    return [];
+  }
+}
+
+// --- SEEDED PSEUDO-RANDOM GENERATOR ---
 function seededRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
@@ -213,6 +304,7 @@ function WeatherAnimation({ isRainy, isCloudy, isNight }: { isRainy: boolean; is
     <div className="fixed inset-0 overflow-hidden z-0 pointer-events-none select-none">
       <div className={`absolute inset-0 transition-all duration-1000 bg-gradient-to-b ${skyGradient}`} />
 
+      {/* STARS */}
       {isNight && !isRainy && !isCloudy && starPositions.length > 0 && (
         <div className="absolute inset-0 opacity-80">
           {starPositions.map((star, i) => (
@@ -227,6 +319,7 @@ function WeatherAnimation({ isRainy, isCloudy, isNight }: { isRainy: boolean; is
         </div>
       )}
 
+      {/* CLOUDS */}
       <div className="absolute top-10 inset-x-0 h-64 opacity-50 mix-blend-overlay">
         <motion.div 
           className={`absolute left-[-20%] w-[35rem] h-32 rounded-full blur-3xl ${isNight ? 'bg-slate-800/80' : 'bg-white/80'}`}
@@ -248,6 +341,7 @@ function WeatherAnimation({ isRainy, isCloudy, isNight }: { isRainy: boolean; is
         )}
       </div>
 
+      {/* RAIN */}
       {isRainy && rainPositions.length > 0 && (
         <div className="absolute inset-0 opacity-40 z-20">
           {rainPositions.map((rain, i) => (
@@ -270,14 +364,9 @@ function MiniSparkline({ data, dataKey, color }: { data: Array<any>; dataKey: st
   if (!data || data.length < 2) return <div className="h-10 w-full mt-4 bg-white/5 rounded-2xl" />;
   
   const values = data.map(d => d[dataKey] || 0);
-  const rawMax = Math.max(...values);
-  const rawMin = Math.min(...values);
-  
-  // Add 10% padding top and bottom so lines don't hit the absolute edge
-  const padding = (rawMax - rawMin) * 0.1 || 1; 
-  const max = rawMax + padding;
-  const min = rawMin - padding;
-  const range = max - min;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min === 0 ? 1 : max - min;
 
   const width = 300;
   const height = 30;
@@ -290,105 +379,42 @@ function MiniSparkline({ data, dataKey, color }: { data: Array<any>; dataKey: st
   }).join(" L ");
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-10 mt-3 preserve-3d">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-10 mt-3">
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       <polyline points={`0,${height} L ${points} L ${width},${height}`} fill={`${color}15`} stroke="none" />
     </svg>
   );
 }
 
-// --- REAL TREND CHART WITH AXES AND LABELS ---
-function RealTrendChart({ data, dataKey, color, unit }: { data: Array<any>; dataKey: string; color: string; unit: string }) {
-  if (!data || data.length < 2) return <div className="text-white/50 text-sm h-full flex items-center justify-center">Insufficient data to graph</div>;
+// --- LINE CHART FOR TRENDS ---
+function LineChart({ data, dataKey, color, unit }: { data: Array<any>; dataKey: string; color: string; unit: string }) {
+  if (!data || data.length < 2) return <div className="text-white/50 text-sm">Insufficient data</div>;
   
   const values = data.map(d => d[dataKey] || 0);
-  const rawMax = Math.max(...values);
-  const rawMin = Math.min(...values);
-  
-  // Create padded range for Y axis
-  const padding = (rawMax - rawMin) * 0.1 || 1;
-  const max = rawMax + padding;
-  const min = rawMin - padding;
-  const range = max - min;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min === 0 ? 1 : max - min;
 
-  const width = 400;
-  const height = 140;
+  const width = 100;
+  const height = 100;
+  const stepX = width / (data.length - 1);
   
-  // Leave room for Y-axis labels (left) and X-axis labels (bottom)
-  const paddingX = 35; 
-  const paddingY = 20; 
-  const chartWidth = width - paddingX;
-  const chartHeight = height - paddingY;
-  
-  const stepX = chartWidth / (data.length - 1);
-  
-  // Generate points mapping to chart boundaries
   const points = data.map((d, i) => {
-    const x = paddingX + (i * stepX);
-    const y = chartHeight - (((d[dataKey] - min) / range) * chartHeight);
+    const x = i * stepX;
+    const y = height - ((d[dataKey] - min) / range) * height;
     return `${x},${y}`;
   }).join(" L ");
 
-  // Decide how many X labels to show to prevent crowding
-  const labelInterval = Math.ceil(data.length / 5);
-
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
       <defs>
-        <linearGradient id={`gradient-${dataKey}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.4 }} />
-          <stop offset="100%" style={{ stopColor: color, stopOpacity: 0.0 }} />
+        <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.3 }} />
+          <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
         </linearGradient>
       </defs>
-
-      {/* Grid Lines & Y Axis Labels */}
-      {[0, 0.5, 1].map((ratio, index) => {
-        const y = chartHeight - (chartHeight * ratio);
-        const val = (min + (range * ratio)).toFixed(1);
-        return (
-          <g key={`grid-y-${index}`}>
-            <line x1={paddingX} y1={y} x2={width} y2={y} stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="4 4" />
-            <text x={paddingX - 8} y={y + 4} fill="rgba(255,255,255,0.5)" fontSize="10" textAnchor="end">{val}{unit}</text>
-          </g>
-        );
-      })}
-
-      {/* X Axis Labels */}
-      {data.map((d, i) => {
-        if (i % labelInterval === 0 || i === data.length - 1) {
-          const x = paddingX + (i * stepX);
-          return (
-             <text key={`label-x-${i}`} x={x} y={height} fill="rgba(255,255,255,0.5)" fontSize="9" textAnchor="middle">
-               {d.label}
-             </text>
-          );
-        }
-        return null;
-      })}
-
-      {/* The Line and Fill */}
-      <polyline 
-        points={`${paddingX},${chartHeight} L ${points} L ${width},${chartHeight}`} 
-        fill={`url(#gradient-${dataKey})`} 
-        stroke="none" 
-      />
-      <polyline 
-        points={points} 
-        fill="none" 
-        stroke={color} 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-      />
-      
-      {/* Data Points (Dots) on Line */}
-      {data.map((d, i) => {
-        const x = paddingX + (i * stepX);
-        const y = chartHeight - (((d[dataKey] - min) / range) * chartHeight);
-        return (
-          <circle key={`dot-${i}`} cx={x} cy={y} r="3" fill="#000" stroke={color} strokeWidth="1.5" />
-        );
-      })}
+      <polyline points={`0,${height} L ${points} L ${width},${height}`} fill="url(#gradient)" stroke="none" />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -399,14 +425,14 @@ export default function WeatherDashboard() {
   const [dangerWarning, setDangerWarning] = useState<any>(null);
   const [predictions, setPredictions] = useState<any>(null);
   const [mlData, setMlData] = useState<any>(null);
-  const [rawHistory, setRawHistory] = useState<Record<string, any>>({});
-  
+  const [currentStatData, setCurrentStatData] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
   const [showGraphs, setShowGraphs] = useState(false);
-  const [trendMode, setTrendMode] = useState<"hourly" | "daily">("hourly");
+  const [trendMode, setTrendMode] = useState<"hourly" | "daily">("daily");
   const [isMounted, setIsMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
 
-  // Mark as mounted on client only & set up time updates
+  // MOUNT & TIME
   useLayoutEffect(() => {
     setIsMounted(true);
     const updateTime = () => {
@@ -427,19 +453,21 @@ export default function WeatherDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Firebase listeners
+  // FIREBASE LISTENERS
   useEffect(() => {
     const sensorsRef = ref(db, "ESP32_agent/sensor_readings");
     const dangerWarningRef = ref(db, "ESP32_agent/danger_warnings");
     const predictionsRef = ref(db, "ESP32_agent/predictions");
     const historyRef = ref(db, "ESP32_agent/history");
     const mlRef = ref(db, "ML_Module/Live_Forecast");
+    const currentStatRef = ref(db, "ESP32_agent/current_stat");
 
     const unsubscribeSensors = onValue(sensorsRef, (snapshot) => setSensorData(snapshot.val() || {}));
     const unsubscribeDanger = onValue(dangerWarningRef, (snapshot) => setDangerWarning(snapshot.val() || {}));
     const unsubscribePredictions = onValue(predictionsRef, (snapshot) => setPredictions(snapshot.val() || {}));
-    const unsubscribeHistory = onValue(historyRef, (snapshot) => setRawHistory(snapshot.val() || {}));
+    const unsubscribeHistory = onValue(historyRef, (snapshot) => setHistory(snapshot.val() || []));
     const unsubscribeML = onValue(mlRef, (snapshot) => setMlData(snapshot.val() || {}));
+    const unsubscribeCurrentStat = onValue(currentStatRef, (snapshot) => setCurrentStatData(snapshot.val() || {}));
 
     return () => {
       unsubscribeSensors();
@@ -447,47 +475,72 @@ export default function WeatherDashboard() {
       unsubscribePredictions();
       unsubscribeHistory();
       unsubscribeML();
+      unsubscribeCurrentStat();
     };
   }, []);
 
-  // Process History (Memoized so it only recalculates when new history arrives)
-  const { hourly: historyHourly, daily: historyDaily } = useMemo(() => {
-    return processSensorHistory(rawHistory);
-  }, [rawHistory]);
-
-  // Derived values
+  // DERIVED VALUES
   const currentConditionsText: string = predictions?.forecast || "";
+  const currentWeatherStatus: string = currentStatData?.weather_status || "";
   const dangerStatus: string = mlData?.["Danger Levels"]?.["Status"] || "";
   const dangerDefinition: string = mlData?.["Danger Levels"]?.["Definition"] || "Awaiting the latest assessment from the prediction model.";
   const dangerConfig = getDangerLevelConfig(dangerStatus);
   const systemStatus: string = dangerWarning?.status || "";
 
-  const isRainy = currentConditionsText.toLowerCase().includes("rain") || mlData?.["Forcast"]?.["Hour_01"]?.toLowerCase?.().includes("rain") || false;
-  const isCloudy = currentConditionsText.toLowerCase().includes("cloud") || mlData?.["Forcast"]?.["Hour_01"]?.toLowerCase?.().includes("cloud") || false;
+  const isRainy = currentConditionsText.toLowerCase().includes("rain") || mlData?.["Forecast"]?.["Day_01"]?.toLowerCase?.().includes("rain") || false;
+  const isCloudy = currentConditionsText.toLowerCase().includes("cloud") || mlData?.["Forecast"]?.["Day_01"]?.toLowerCase?.().includes("cloud") || false;
   const isNight = isMounted ? (new Date().getHours() < 6 || new Date().getHours() > 18) : false;
   const feelsLike = getFeelsLike(sensorData?.avg_temp || 0, sensorData?.avg_humidity || 0);
   const rainProbability = Math.min(100, Math.max(0, (sensorData?.avg_humidity || 0) * 0.8 + (sensorData?.avg_pressure || 1013 - 1000) * 2));
 
-  // Determine active trend data (last 24 hours or last 7 days)
-  const activeTrendData = trendMode === "hourly" 
-    ? historyHourly.slice(-24) 
-    : historyDaily.slice(-7);
+  // HISTORY AGGREGATION
+  const historyHourly = aggregateHistoryByHour(history, Array.isArray(history) ? {} : history);
+  const historyDaily = aggregateHistoryByDay(history, Array.isArray(history) ? {} : history);
 
-  const getNextHourLabel = (offset: number) => {
-    if (!isMounted) return `+${offset}h`; 
+  // TREND DATA
+  const trendDataHourly = historyHourly.slice(-24).map((item) => ({
+    avg_temp: item.data?.avg_temp || 0,
+    avg_humidity: item.data?.avg_humidity || 0,
+    avg_pressure: item.data?.avg_pressure || 0,
+    median_soil: item.data?.median_soil || 0,
+    label: item.hour || "",
+  }));
+
+  const trendDataDaily = historyDaily.slice(-7).map((item) => ({
+    avg_temp: item.data?.avg_temp || 0,
+    avg_humidity: item.data?.avg_humidity || 0,
+    avg_pressure: item.data?.avg_pressure || 0,
+    median_soil: item.data?.median_soil || 0,
+    label: item.day || "",
+  }));
+
+  const fallbackTrendData = [
+    { avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0, label: "Loading..." },
+  ];
+
+  const activeTrendData = trendMode === "hourly" 
+    ? (trendDataHourly.length > 0 ? trendDataHourly : fallbackTrendData)
+    : (trendDataDaily.length > 0 ? trendDataDaily : fallbackTrendData);
+
+  const getNextDayLabel = (offset: number) => {
+    if (!isMounted) {
+      return `Day +${offset}`;
+    }
     const now = new Date();
-    now.setHours(now.getHours() + offset);
-    return now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+    now.setDate(now.getDate() + offset);
+    return now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   };
 
   const glassPanel = "bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl hover:bg-white/10 transition-colors duration-300";
 
   return (
     <main className="relative w-full min-h-screen bg-black/50 overflow-hidden">
+      {/* BACKGROUND */}
       <WeatherAnimation isRainy={isRainy} isCloudy={isCloudy} isNight={isNight} />
 
+      {/* CONTENT */}
       <div className="relative z-10 w-full h-full">
-        {/* Header */}
+        {/* HEADER */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -528,12 +581,32 @@ export default function WeatherDashboard() {
           </div>
         </motion.div>
 
-        {/* Main Content Grid */}
+        {/* CURRENT WEATHER STATUS BANNER */}
+        {currentWeatherStatus && isMounted && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="px-4 md:px-8 py-6 md:py-8 border-b border-white/10"
+          >
+            <div className="max-w-7xl mx-auto flex items-center justify-center gap-6">
+              <PremiumWeatherIcon type={currentWeatherStatus} className="w-16 h-16 md:w-20 md:h-20" />
+              <div>
+                <p className="text-xs md:text-sm font-600 uppercase tracking-wider text-white/60 mb-1">Current Conditions</p>
+                <p className="text-3xl md:text-4xl font-400 text-white capitalize">{currentWeatherStatus}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* MAIN GRID */}
         <div className="px-4 md:px-8 py-8 md:py-10">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
 
-              {/* ========== ROW 1: LIVE READINGS ========== */}
+              {/* ROW 1: LIVE READINGS */}
+
+              {/* PRIMARY: TEMPERATURE */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -545,7 +618,7 @@ export default function WeatherDashboard() {
                     <div>
                       <span className="text-xs md:text-sm font-600 uppercase tracking-wider text-white/60 block mb-1">Current Temperature</span>
                       <h2 className="text-6xl md:text-7xl font-300 text-white tracking-tighter">
-                        {sensorData?.avg_temp?.toFixed(1) || "--"}°
+                        {sensorData?.avg_temp?.toFixed(0) || "--"}°
                       </h2>
                     </div>
                     <Thermometer className="w-8 h-8 text-white/60" />
@@ -562,6 +635,7 @@ export default function WeatherDashboard() {
                 <MiniSparkline data={activeTrendData} dataKey="avg_temp" color="#ffffff" />
               </motion.div>
 
+              {/* SECONDARY: HUMIDITY */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -582,6 +656,7 @@ export default function WeatherDashboard() {
                 <MiniSparkline data={activeTrendData} dataKey="avg_humidity" color="#ffffff" />
               </motion.div>
 
+              {/* SECONDARY: PRESSURE & SOIL MOISTURE */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -607,12 +682,14 @@ export default function WeatherDashboard() {
                 </div>
               </motion.div>
 
-              {/* ========== ROW 2: ML DANGER ASSESSMENT ========== */}
+              {/* ROW 2: ML ASSESSMENT */}
+
+              {/* HERO: DANGER LEVEL */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className={`${glassPanel} p-8 md:p-10 lg:col-span-2 relative overflow-hidden flex flex-col justify-center items-center gap-6`}
+                className={`${glassPanel} p-6 md:p-8 lg:col-span-1 relative overflow-hidden flex flex-col justify-center items-center gap-4`}
                 style={{
                   boxShadow: isMounted ? `0 0 60px -15px ${dangerConfig.glow}` : undefined,
                   borderColor: isMounted ? `${dangerConfig.color}33` : undefined,
@@ -624,7 +701,7 @@ export default function WeatherDashboard() {
                 />
 
                 <div className="relative flex flex-col items-center justify-center gap-3 z-10">
-                  <div className="relative w-36 h-36 md:w-40 md:h-40 flex items-center justify-center">
+                  <div className="relative w-28 h-28 md:w-32 md:h-32 flex items-center justify-center">
                     <motion.div
                       className="absolute inset-0 rounded-full"
                       style={{ backgroundColor: dangerConfig.color }}
@@ -632,38 +709,40 @@ export default function WeatherDashboard() {
                       transition={{ repeat: Infinity, duration: 2.6, ease: "easeInOut" }}
                     />
                     <div
-                      className="relative w-28 h-28 md:w-32 md:h-32 rounded-full flex flex-col items-center justify-center text-center border-4 shadow-2xl"
+                      className="relative w-20 h-20 md:w-24 md:h-24 rounded-full flex flex-col items-center justify-center text-center border-4 shadow-2xl"
                       style={{
                         backgroundColor: `${dangerConfig.color}25`,
                         borderColor: dangerConfig.color,
                       }}
                     >
-                      <ShieldAlert className="w-7 h-7 md:w-8 md:h-8 mb-1" style={{ color: dangerConfig.color }} />
+                      <ShieldAlert className="w-5 h-5 md:w-6 md:h-6 mb-1" style={{ color: dangerConfig.color }} />
                       <span
-                        className="text-lg md:text-xl font-700 uppercase tracking-wide leading-tight px-2"
+                        className="text-sm md:text-base font-700 uppercase tracking-wide leading-tight px-2"
                         style={{ color: dangerConfig.color }}
                       >
                         {isMounted ? dangerConfig.label : "—"}
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs md:text-sm font-600 uppercase tracking-widest text-white/60 mt-2">
+
+                  <span className="text-xs font-600 uppercase tracking-widest text-white/60">
                     Danger Level
                   </span>
                 </div>
               </motion.div>
 
+              {/* ML ASSESSMENT CARD */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`${glassPanel} p-6 md:p-7 lg:col-span-2 min-h-[300px] flex flex-col justify-between`}
+                className={`${glassPanel} p-6 md:p-7 lg:col-span-1 min-h-[240px] flex flex-col justify-between`}
               >
                 <div>
                   <span className="text-xs md:text-sm font-600 uppercase tracking-wider text-white/60 block mb-3">
                     Assessment
                   </span>
-                  <p className="text-base md:text-lg font-400 text-white leading-relaxed mb-4">
+                  <p className="text-sm md:text-base font-400 text-white leading-relaxed">
                     {isMounted ? dangerDefinition : "Loading latest disaster prediction..."}
                   </p>
                 </div>
@@ -676,12 +755,12 @@ export default function WeatherDashboard() {
                 )}
               </motion.div>
 
-              {/* ========== ROW 3: WEATHER CONDITIONS ========== */}
+              {/* PRECIPITATION */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
                 transition={{ delay: 0.25 }}
-                className={`${glassPanel} p-6 md:p-7 min-h-[300px] flex flex-col justify-between`}
+                className={`${glassPanel} p-6 md:p-7 lg:col-span-1 min-h-[240px] flex flex-col justify-between`}
               >
                 <div>
                   <div className="flex justify-between items-center mb-4">
@@ -689,14 +768,14 @@ export default function WeatherDashboard() {
                     <PremiumWeatherIcon type={currentConditionsText || "rain"} className="w-5 h-5" />
                   </div>
                   
-                  <div className="mb-5">
-                    <div className="text-5xl md:text-6xl font-300 text-white">
+                  <div className="mb-4">
+                    <div className="text-4xl md:text-5xl font-300 text-white">
                       {rainProbability.toFixed(0)}
-                      <span className="text-2xl md:text-3xl text-white/50 ml-1">%</span>
+                      <span className="text-xl md:text-2xl text-white/50 ml-1">%</span>
                     </div>
                   </div>
 
-                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden mb-4">
+                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden mb-3">
                     <motion.div 
                       className="bg-gradient-to-r from-blue-400 to-cyan-400 h-full"
                       initial={{ width: 0 }}
@@ -711,38 +790,53 @@ export default function WeatherDashboard() {
                 </div>
               </motion.div>
 
+              {/* ROW 3: 7-DAY FORECAST */}
+
+              {/* 7-DAY FORECAST PANEL */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
                 transition={{ delay: 0.3 }}
-                className={`${glassPanel} p-6 md:p-8 lg:col-span-3`}
+                className={`${glassPanel} p-4 md:p-6 lg:col-span-4`}
               >
-                <div className="flex items-center gap-2 text-white/60 text-xs md:text-sm font-600 tracking-wider uppercase mb-6">
-                  <Clock className="w-4 h-4" /> 4-Hour Forecast
+                <div className="flex items-center gap-2 text-white/60 text-xs md:text-sm font-600 tracking-wider uppercase mb-3">
+                  <Clock className="w-4 h-4" /> Forecast for the Week
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 border-t border-white/10 pt-6">
-                  {isMounted && ["Hour_01", "Hour_02", "Hour_03", "Hour_04"].map((hourKey, index) => {
-                    const rawString = mlData?.["Forcast"]?.[hourKey] || "Analyzing...";
-                    const cleanPrediction = rawString.includes(": ") ? rawString.split(": ")[1] : rawString;
-                    const actualTime = getNextHourLabel(index + 1);
+                <div className="flex gap-2 border-t border-white/10 pt-4 overflow-x-auto pb-2">
+                  {isMounted && ["Day_01", "Day_02", "Day_03", "Day_04", "Day_05", "Day_06", "Day_07"].map((dayKey, index) => {
+                    const rawString = mlData?.["Forecast"]?.[dayKey] || "Analyzing...";
+                    const cleanPrediction = rawString.includes(": ") ? rawString.split(": ")[1]?.trim() || "Sunny" : rawString;
+                    const actualDay = getNextDayLabel(index + 1);
                     
                     return (
                       <motion.div 
-                        key={hourKey}
+                        key={dayKey}
                         whileHover={{ y: -4 }}
-                        className="bg-white/5 border border-white/10 p-4 md:p-5 rounded-2xl text-center hover:bg-white/10 transition-colors flex flex-col items-center justify-center gap-3"
+                        className="bg-white/5 border border-white/10 px-3 py-4 rounded-xl text-center hover:bg-white/10 transition-colors flex flex-col items-center justify-between gap-3 flex-shrink-0 w-28 h-auto"
                       >
-                        <span className="text-xs text-white/60 font-500 uppercase tracking-wide">{actualTime}</span>
-                        <PremiumWeatherIcon type={cleanPrediction} className="w-12 h-12" />
-                        <span className="text-xs md:text-sm font-500 text-white/90 capitalize">{cleanPrediction}</span>
+                        <div className="flex flex-col items-center gap-2 w-full">
+                          <span className="text-xs text-white/60 font-500 uppercase tracking-wide leading-tight whitespace-normal break-words">{actualDay}</span>
+                          <PremiumWeatherIcon type={cleanPrediction} className="w-9 h-9" />
+                        </div>
+                        <span className="text-xs font-500 text-white/90 capitalize">{cleanPrediction}</span>
                       </motion.div>
                     );
                   })}
+                  
+                  {!isMounted && (
+                    <>
+                      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                        <div key={`placeholder-${i}`} className="bg-white/5 border border-white/10 px-3 py-4 rounded-xl h-32 animate-pulse flex-shrink-0 w-28" />
+                      ))}
+                    </>
+                  )}
                 </div>
               </motion.div>
 
-              {/* ========== ROW 4: EXPANDING REAL TRENDS ========== */}
+              {/* ROW 4: HISTORICAL TRENDS */}
+
+              {/* EXPANDING TRENDS SECTION */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }} 
                 animate={{ opacity: 1, y: 0 }} 
@@ -755,7 +849,7 @@ export default function WeatherDashboard() {
                 >
                   <div className="flex items-center gap-3 text-white/80 text-xs md:text-sm font-600 tracking-wider uppercase">
                     <Activity className="w-5 h-5" /> 
-                    Historical Real Trends
+                    Historical Trends
                   </div>
                   <motion.div animate={{ rotate: showGraphs ? 180 : 0 }} transition={{ duration: 0.3 }}>
                     <ChevronDown className="w-5 h-5 text-white/60" />
@@ -770,6 +864,8 @@ export default function WeatherDashboard() {
                       exit={{ height: 0, opacity: 0 }}
                       className="px-6 md:px-8 pb-8 border-t border-white/10"
                     >
+                      
+                      {/* TOGGLE BUTTONS */}
                       <div className="flex gap-2 mt-6 mb-6 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
                         {["hourly", "daily"].map((mode) => (
                           <button 
@@ -781,41 +877,50 @@ export default function WeatherDashboard() {
                                 : "text-white/60 hover:text-white"
                             }`}
                           >
-                            {mode === "hourly" ? "Hourly (24H)" : "Daily (7D)"}
+                            {mode === "hourly" ? "Hourly" : "Daily"}
                           </button>
                         ))}
                       </div>
 
+                      {/* CHARTS GRID */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+                        
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-6">
-                          <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Temperature Trend</span>
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Temperature</span>
+                            <span className="text-xs text-white/50 font-500">
+                              {trendMode === "hourly" ? "Last 24 Hours" : "Last 7 Days"}
+                            </span>
                           </div>
-                          <div className="h-40 md:h-56 w-full">
+                          <div className="h-40 md:h-48 w-full">
                             {activeTrendData.length > 1 ? (
-                              <RealTrendChart data={activeTrendData} dataKey="avg_temp" color="#60A5FA" unit="°" />
+                              <LineChart data={activeTrendData} dataKey="avg_temp" color="#ffffff" unit="°" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">
-                                Collecting sufficient {trendMode} data...
+                                Collecting {trendMode === "hourly" ? "hourly" : "daily"} data...
                               </div>
                             )}
                           </div>
                         </div>
 
                         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-6">
-                          <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Humidity Trend</span>
+                          <div className="flex justify-between items-center mb-4">
+                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Humidity</span>
+                            <span className="text-xs text-white/50 font-500">
+                              {trendMode === "hourly" ? "Last 24 Hours" : "Last 7 Days"}
+                            </span>
                           </div>
-                          <div className="h-40 md:h-56 w-full">
+                          <div className="h-40 md:h-48 w-full">
                             {activeTrendData.length > 1 ? (
-                              <RealTrendChart data={activeTrendData} dataKey="avg_humidity" color="#34D399" unit="%" />
+                              <LineChart data={activeTrendData} dataKey="avg_humidity" color="#ffffff" unit="%" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">
-                                Collecting sufficient {trendMode} data...
+                                Collecting {trendMode === "hourly" ? "hourly" : "daily"} data...
                               </div>
                             )}
                           </div>
                         </div>
+
                       </div>
                     </motion.div>
                   )}
@@ -827,6 +932,7 @@ export default function WeatherDashboard() {
         </div>
       </div>
 
+      {/* FONT INJECTION */}
       <style>{globalStyles}</style>
     </main>
   );
