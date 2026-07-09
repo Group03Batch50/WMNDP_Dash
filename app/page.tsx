@@ -11,7 +11,6 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Activity,
   ShieldAlert,
   Radio
 } from "lucide-react";
@@ -148,116 +147,6 @@ function parseTimestamp(tsString: string): { date: Date; hour: string; day: stri
   }
 }
 
-function aggregateHistoryByHour(
-  rawHistory: any[],
-  rawHistoryObj: Record<string, any>
-): Array<{ timestamp: string; hour: string; data: any; index: number }> {
-  try {
-    const items = Array.isArray(rawHistory) ? rawHistory : Object.values(rawHistoryObj || {});
-    
-    if (!items || items.length === 0) return [];
-    
-    const parsed = items
-      .map((item: any) => ({
-        ...item,
-        ts: parseTimestamp(item.timestamp),
-      }))
-      .filter((item: any) => item.ts !== null)
-      .sort((a: any, b: any) => a.ts.date.getTime() - b.ts.date.getTime());
-
-    if (parsed.length === 0) return [];
-
-    const hourlyMap: Record<string, any> = {};
-    const hourlyIndices: Record<string, number[]> = {};
-
-    parsed.forEach((item: any, idx: number) => {
-      const hourKey = item.ts.date.toISOString().substring(0, 13);
-      if (!hourlyMap[hourKey]) {
-        hourlyMap[hourKey] = { count: 0, avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0 };
-        hourlyIndices[hourKey] = [];
-      }
-      hourlyMap[hourKey].count += 1;
-      hourlyMap[hourKey].avg_temp += item.avg_temp || 0;
-      hourlyMap[hourKey].avg_humidity += item.avg_humidity || 0;
-      hourlyMap[hourKey].avg_pressure += item.avg_pressure || 0;
-      hourlyMap[hourKey].median_soil = item.median_soil || 0;
-      hourlyIndices[hourKey].push(idx);
-    });
-
-    return Object.entries(hourlyMap).map(([hourKey, data], index) => {
-      data.avg_temp /= data.count;
-      data.avg_humidity /= data.count;
-      data.avg_pressure /= data.count;
-      
-      const sampleTs = parsed[hourlyIndices[hourKey][0]].ts;
-      return {
-        timestamp: hourKey,
-        hour: sampleTs.hour,
-        data,
-        index,
-      };
-    });
-  } catch (error) {
-    console.warn("Error aggregating hourly history:", error);
-    return [];
-  }
-}
-
-function aggregateHistoryByDay(
-  rawHistory: any[],
-  rawHistoryObj: Record<string, any>
-): Array<{ timestamp: string; day: string; data: any; index: number }> {
-  try {
-    const items = Array.isArray(rawHistory) ? rawHistory : Object.values(rawHistoryObj || {});
-    
-    if (!items || items.length === 0) return [];
-    
-    const parsed = items
-      .map((item: any) => ({
-        ...item,
-        ts: parseTimestamp(item.timestamp),
-      }))
-      .filter((item: any) => item.ts !== null)
-      .sort((a: any, b: any) => a.ts.date.getTime() - b.ts.date.getTime());
-
-    if (parsed.length === 0) return [];
-
-    const dailyMap: Record<string, any> = {};
-    const dailyIndices: Record<string, number[]> = {};
-
-    parsed.forEach((item: any, idx: number) => {
-      const dayKey = item.ts.date.toISOString().substring(0, 10);
-      if (!dailyMap[dayKey]) {
-        dailyMap[dayKey] = { count: 0, avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0 };
-        dailyIndices[dayKey] = [];
-      }
-      dailyMap[dayKey].count += 1;
-      dailyMap[dayKey].avg_temp += item.avg_temp || 0;
-      dailyMap[dayKey].avg_humidity += item.avg_humidity || 0;
-      dailyMap[dayKey].avg_pressure += item.avg_pressure || 0;
-      dailyMap[dayKey].median_soil = item.median_soil || 0;
-      dailyIndices[dayKey].push(idx);
-    });
-
-    return Object.entries(dailyMap).map(([dayKey, data], index) => {
-      data.avg_temp /= data.count;
-      data.avg_humidity /= data.count;
-      data.avg_pressure /= data.count;
-      
-      const sampleTs = parsed[dailyIndices[dayKey][0]].ts;
-      return {
-        timestamp: dayKey,
-        day: sampleTs.day,
-        data,
-        index,
-      };
-    });
-  } catch (error) {
-    console.warn("Error aggregating daily history:", error);
-    return [];
-  }
-}
-
 // --- SEEDED PSEUDO-RANDOM GENERATOR ---
 function seededRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
@@ -359,65 +248,6 @@ function WeatherAnimation({ isRainy, isCloudy, isNight }: { isRainy: boolean; is
   );
 }
 
-// --- MINI SPARKLINE CHART ---
-function MiniSparkline({ data, dataKey, color }: { data: Array<any>; dataKey: string; color: string }) {
-  if (!data || data.length < 2) return <div className="h-10 w-full mt-4 bg-white/5 rounded-2xl" />;
-  
-  const values = data.map(d => d[dataKey] || 0);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min === 0 ? 1 : max - min;
-
-  const width = 300;
-  const height = 30;
-  const stepX = width / (data.length - 1);
-  
-  const points = data.map((d, i) => {
-    const x = i * stepX;
-    const y = height - ((d[dataKey] - min) / range) * height;
-    return `${x},${y}`;
-  }).join(" L ");
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-10 mt-3">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points={`0,${height} L ${points} L ${width},${height}`} fill={`${color}15`} stroke="none" />
-    </svg>
-  );
-}
-
-// --- LINE CHART FOR TRENDS ---
-function LineChart({ data, dataKey, color, unit }: { data: Array<any>; dataKey: string; color: string; unit: string }) {
-  if (!data || data.length < 2) return <div className="text-white/50 text-sm">Insufficient data</div>;
-  
-  const values = data.map(d => d[dataKey] || 0);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min === 0 ? 1 : max - min;
-
-  const width = 100;
-  const height = 100;
-  const stepX = width / (data.length - 1);
-  
-  const points = data.map((d, i) => {
-    const x = i * stepX;
-    const y = height - ((d[dataKey] - min) / range) * height;
-    return `${x},${y}`;
-  }).join(" L ");
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-      <defs>
-        <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.3 }} />
-          <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
-        </linearGradient>
-      </defs>
-      <polyline points={`0,${height} L ${points} L ${width},${height}`} fill="url(#gradient)" stroke="none" />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 // --- MAIN COMPONENT ---
 export default function WeatherDashboard() {
@@ -427,8 +257,6 @@ export default function WeatherDashboard() {
   const [mlData, setMlData] = useState<any>(null);
   const [currentStatData, setCurrentStatData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [showGraphs, setShowGraphs] = useState(false);
-  const [trendMode, setTrendMode] = useState<"hourly" | "daily">("daily");
   const [isMounted, setIsMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>("");
 
@@ -493,34 +321,7 @@ export default function WeatherDashboard() {
   const feelsLike = getFeelsLike(sensorData?.avg_temp || 0, sensorData?.avg_humidity || 0);
   const rainProbability = Math.min(100, Math.max(0, (sensorData?.avg_humidity || 0) * 0.8 + (sensorData?.avg_pressure || 1013 - 1000) * 2));
 
-  // HISTORY AGGREGATION
-  const historyHourly = aggregateHistoryByHour(history, Array.isArray(history) ? {} : history);
-  const historyDaily = aggregateHistoryByDay(history, Array.isArray(history) ? {} : history);
 
-  // TREND DATA
-  const trendDataHourly = historyHourly.slice(-24).map((item) => ({
-    avg_temp: item.data?.avg_temp || 0,
-    avg_humidity: item.data?.avg_humidity || 0,
-    avg_pressure: item.data?.avg_pressure || 0,
-    median_soil: item.data?.median_soil || 0,
-    label: item.hour || "",
-  }));
-
-  const trendDataDaily = historyDaily.slice(-7).map((item) => ({
-    avg_temp: item.data?.avg_temp || 0,
-    avg_humidity: item.data?.avg_humidity || 0,
-    avg_pressure: item.data?.avg_pressure || 0,
-    median_soil: item.data?.median_soil || 0,
-    label: item.day || "",
-  }));
-
-  const fallbackTrendData = [
-    { avg_temp: 0, avg_humidity: 0, avg_pressure: 0, median_soil: 0, label: "Loading..." },
-  ];
-
-  const activeTrendData = trendMode === "hourly" 
-    ? (trendDataHourly.length > 0 ? trendDataHourly : fallbackTrendData)
-    : (trendDataDaily.length > 0 ? trendDataDaily : fallbackTrendData);
 
   const getNextDayLabel = (offset: number) => {
     if (!isMounted) {
@@ -631,8 +432,6 @@ export default function WeatherDashboard() {
                     </div>
                   </div>
                 </div>
-
-                <MiniSparkline data={activeTrendData} dataKey="avg_temp" color="#ffffff" />
               </motion.div>
 
               {/* SECONDARY: HUMIDITY */}
@@ -653,7 +452,6 @@ export default function WeatherDashboard() {
                   </div>
                   <p className="text-xs md:text-sm text-white/60 mt-3">Moisture level</p>
                 </div>
-                <MiniSparkline data={activeTrendData} dataKey="avg_humidity" color="#ffffff" />
               </motion.div>
 
               {/* SECONDARY: PRESSURE & SOIL MOISTURE */}
@@ -834,98 +632,7 @@ export default function WeatherDashboard() {
                 </div>
               </motion.div>
 
-              {/* ROW 4: HISTORICAL TRENDS */}
 
-              {/* EXPANDING TRENDS SECTION */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                transition={{ delay: 0.3 }}
-                className={`lg:col-span-4 ${glassPanel}`}
-              >
-                <div 
-                  className="p-6 md:p-8 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors"
-                  onClick={() => setShowGraphs(!showGraphs)}
-                >
-                  <div className="flex items-center gap-3 text-white/80 text-xs md:text-sm font-600 tracking-wider uppercase">
-                    <Activity className="w-5 h-5" /> 
-                    Historical Trends
-                  </div>
-                  <motion.div animate={{ rotate: showGraphs ? 180 : 0 }} transition={{ duration: 0.3 }}>
-                    <ChevronDown className="w-5 h-5 text-white/60" />
-                  </motion.div>
-                </div>
-
-                <AnimatePresence>
-                  {showGraphs && (
-                    <motion.div 
-                      initial={{ height: 0, opacity: 0 }} 
-                      animate={{ height: "auto", opacity: 1 }} 
-                      exit={{ height: 0, opacity: 0 }}
-                      className="px-6 md:px-8 pb-8 border-t border-white/10"
-                    >
-                      
-                      {/* TOGGLE BUTTONS */}
-                      <div className="flex gap-2 mt-6 mb-6 p-1 bg-white/5 rounded-xl border border-white/10 w-fit">
-                        {["hourly", "daily"].map((mode) => (
-                          <button 
-                            key={mode}
-                            onClick={() => setTrendMode(mode as "hourly" | "daily")}
-                            className={`px-4 py-2 rounded-lg text-xs font-600 tracking-wider uppercase transition-all ${
-                              trendMode === mode 
-                                ? "bg-white text-black shadow-lg" 
-                                : "text-white/60 hover:text-white"
-                            }`}
-                          >
-                            {mode === "hourly" ? "Hourly" : "Daily"}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* CHARTS GRID */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
-                        
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-6">
-                          <div className="flex justify-between items-center mb-4">
-                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Temperature</span>
-                            <span className="text-xs text-white/50 font-500">
-                              {trendMode === "hourly" ? "Last 24 Hours" : "Last 7 Days"}
-                            </span>
-                          </div>
-                          <div className="h-40 md:h-48 w-full">
-                            {activeTrendData.length > 1 ? (
-                              <LineChart data={activeTrendData} dataKey="avg_temp" color="#ffffff" unit="°" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">
-                                Collecting {trendMode === "hourly" ? "hourly" : "daily"} data...
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 md:p-6">
-                          <div className="flex justify-between items-center mb-4">
-                            <span className="text-xs text-white/60 font-600 uppercase tracking-wider">Humidity</span>
-                            <span className="text-xs text-white/50 font-500">
-                              {trendMode === "hourly" ? "Last 24 Hours" : "Last 7 Days"}
-                            </span>
-                          </div>
-                          <div className="h-40 md:h-48 w-full">
-                            {activeTrendData.length > 1 ? (
-                              <LineChart data={activeTrendData} dataKey="avg_humidity" color="#ffffff" unit="%" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">
-                                Collecting {trendMode === "hourly" ? "hourly" : "daily"} data...
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
 
             </div>
           </div>
